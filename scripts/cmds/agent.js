@@ -4,7 +4,7 @@ const axios = require("axios");
 const { GoogleGenAI } = require("@google/genai");
 const { Readable } = require("stream");
 
-const GEMINI_API_KEY = "AIzaSyBn5dHQbLKN9mheuR2J7PiyVvj8koFphjY";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo";
 const WORKER_URL = "https://amagi-worker.luxion829.workers.dev";
 const WORKSPACE = path.join(__dirname, "..", "..");
 const HISTORY_FILE = path.join(__dirname, "agentHistory.json");

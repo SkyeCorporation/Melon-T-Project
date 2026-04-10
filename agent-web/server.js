@@ -8,7 +8,7 @@ const app = express();
 const PORT = 8976;
 const PORT_PREVIEW = 5000;
 
-const GEMINI_API_KEY = "AIzaSyBn5dHQbLKN9mheuR2J7PiyVvj8koFphjY";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo";
 const GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
 
 const WORKSPACE_DIR = path.join(__dirname, "..");   // project root

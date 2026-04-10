@@ -646,6 +646,11 @@ body {
   .message-text { font-size: 13.5px; }
 }
 
+.user-sent-image {
+  max-width: 220px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); margin-top: 4px; display: block;
+}
+
 @media (max-width: 380px) {
   .model-badge { display: none; }
   .logo span { font-size: 13px; }

@@ -517,6 +517,9 @@
         addLog(isOk ? "success" : "error", `  ${isOk ? "✓" : "✗"} ${event.name}: ${getResultPreview(event.result)}`);
         if (event.name === "createCheckpoint" && isOk) loadCheckpoints();
         break;
+      case "generated_image":
+        appendGeneratedImage(event.imageData, event.mimeType, event.prompt);
+        break;
       case "done":
         setStatus("done", "Selesai");
         break;
@@ -544,18 +547,37 @@
   }
 
   // ===================== MESSAGES =====================
-  function appendUserMessage(text) {
+  function appendUserMessage(text, img) {
     const el = document.createElement("div");
     el.className = "message";
+    let imgHtml = "";
+    if (img) {
+      imgHtml = `<img src="${img.dataUrl}" alt="sent image" class="user-sent-image">`;
+    }
     el.innerHTML = `
       <div class="message-header">
         <div class="message-avatar user-avatar">U</div>
         <span class="message-role">Kamu</span>
       </div>
       <div class="message-body">
-        <div class="message-text">${escHtml(text)}</div>
+        ${img ? imgHtml : ""}
+        ${text ? `<div class="message-text">${escHtml(text)}</div>` : ""}
       </div>`;
     chatMessages.appendChild(el);
+    scrollToBottom();
+  }
+
+  function appendGeneratedImage(imageData, mimeType, prompt) {
+    if (!currentMsgEl) startAgentMessage();
+    const body = currentMsgEl.querySelector(".message-body");
+    currentTextEl = null;
+    rawTextBuffer = "";
+    const imgDiv = document.createElement("div");
+    imgDiv.className = "imagine-result";
+    imgDiv.innerHTML = `
+      <div class="imagine-label">🎨 <em>${escHtml(prompt || "generated image")}</em></div>
+      <img src="data:${mimeType || "image/png"};base64,${imageData}" alt="${escHtml(prompt || "generated image")}" class="generated-image">`;
+    body.appendChild(imgDiv);
     scrollToBottom();
   }
 

@@ -1,69 +1,79 @@
-# Amagi AI Agent
+# Amagi & Rem AI Agent — Dual Bot Project
 
-A full-featured autonomous AI Agent web app built on top of a GoatBot V2 messenger bot project.
+Dua AI Agent web + Facebook Messenger bot berbasis GoatBot V2.
 
-## Architecture
+---
 
-### AI Agent Web App (`agent-web/`)
-- **`server.js`** — Express backend running on port 5000
-  - SSE-based streaming chat endpoint (`/api/chat`)
-  - File system API (`/api/files`)
-  - Checkpoint API (`/api/checkpoints`)
-  - Agent loop with Gemini function calling
-- **`public/`** — Static frontend (vanilla JS, no build step)
-  - `index.html` — Main layout (3-panel IDE-like UI)
-  - `style.css` — Dark theme styles
-  - `app.js` — Frontend logic (chat, file tree, editor, checkpoints)
-- **`workspace/`** — Virtual filesystem the agent can read/write/execute
-- **`checkpoints/`** — Saved workspace snapshots
+## Arsitektur
 
-### Original GoatBot (`index.js`, `scripts/`, etc.)
-The original Facebook Messenger bot with custom features:
+### AI Agent Web 1: Amagi Agent (`agent-web/`)
+- **Port**: 8976 (main), 5000 (preview/webview)
+- **Backend**: `agent-web/server.js` — Express + Gemini (gemini-3.1-flash-lite-preview)
+- **API Key**: `GEMINI_API_KEY` env secret
+- **Frontend**: `agent-web/public/` — vanilla JS 3-panel IDE UI
+- **Fitur**: Chat streaming, baca/tulis file, generate gambar, checkpoint, kirim gambar dari user
 
-#### Multi-Account Support
-- `account.txt` — Primary bot (Bot 1), uses `registeredGroup.json`
-- `account2.txt` — Secondary bot (Bot 2), uses `registeredGroup2.json`, detected via bot ID comparison
+### AI Agent Web 2: Rem AI Agent (`rem-web/`)
+- **Port**: 8977 (main), 3000 (preview/webview)
+- **Backend**: `rem-web/server.js` — Express + GPT-5.4 (OpenAI)
+- **API Key**: `OPENAI_API_KEY` env secret
+- **Frontend**: `rem-web/public/` — vanilla JS 3-panel IDE UI (sama style dengan Amagi)
+- **Fitur**: Chat streaming, baca/tulis file, generate gambar, checkpoint, kirim gambar dari user, baca gambar yang dikirim user
 
-#### Registration System (`bot/handler/handlerAction.js`)
-- Unregistered group + non-admin sender → bot fully silent
-- Unregistered group + admin sender → only role-2 commands run
-- Registered group → full bot operation
+### Navigasi Antar Agent
+- Amagi Agent → klik "Rem AI" di header → buka port 3000
+- Rem Agent → klik "Amagi" di header → buka port 8976 (atau preview default)
 
-#### Sequential ID System
-- `IDuser`: auto-assigned sequential number (1, 2, 3...) stored in `userData.data.IDuser`
-- `IDgroup`: auto-assigned for groups stored in `threadData.data.IDgroup`
-- Assigned in `handlerAction.js` before registration check — runs for all events
+---
 
-#### Economy System (`scripts/cmds/economy.js` — onChat)
-- Each message in registered groups awards 0.04–0.90 money + 1–5 EXP
-- Stored in `userData.money` and `userData.exp`
+## Facebook Bot — GoatBot V2
 
-#### Command `.c` (role 2, admin only)
-- `.c gr [IDgroup]` — Register group (current or by IDgroup)
-- `.c ugr [IDgroup]` — Unregister group
-- `.c gi [IDgroup]` — Group info (name, ID, IDgroup, members, admins, status)
-- `.c ban <IDuser>` — Ban user by IDuser
-- `.c unban <IDuser>` — Unban user
-- `.c ui [IDuser]` — User info (name, IDuser, status, uang)
+### Multi-Account (2 Bot)
+- `account.txt` — Bot 1: **Amagi** (Gemini AI, karakter manja & profesional)
+- `account2.txt` — Bot 2: **Rem** (GPT-5.4, karakter maid setia)
 
-#### Dual-AI Amagi (`scripts/cmds/amagi.js`)
-- Bot 1: Amagi character (Luxion personality + normal), separate brain in `amagiBrain.json`
-- Bot 2: Configurable system prompt (`BOT2_SYSTEM_PROMPT`), separate brain in `amagiBrain2.json`
+### Sistem Registrasi Group (Terpisah Per Bot)
+- Bot 1 Amagi: `registeredGroup.json`
+- Bot 2 Rem: `registeredGroup2.json`
+- Logic otomatis di `bot/handler/handlerAction.js` — deteksi bot via ID
+- Unregistered group + non-admin → bot diam
+- Unregistered group + admin → hanya command yang jalan
+- Registered group → bot penuh aktif
 
-## AI Agent Features
-- **Autonomous agent loop** — Gemini calls tools iteratively until task is complete
-- **7 tools**: readFile, writeFile, listFiles, deleteFile, runCommand, createCheckpoint, restoreCheckpoint
-- **Streaming** — SSE for real-time agent thoughts + tool results
-- **File Explorer** — Tree view, create/open/delete files, edit in browser
-- **Code Editor** — In-browser textarea editor with save
-- **Checkpoint System** — Snapshot/restore workspace state
-- **Logs Panel** — Real-time agent action log
-- **Safety** — Dangerous command blocking, workspace path sandboxing
+### Command Bot
+| Command | Role | Fungsi |
+|---------|------|--------|
+| `.c gr [IDgroup]` | Admin | Register group |
+| `.c ugr [IDgroup]` | Admin | Unregister group |
+| `.c gi [IDgroup]` | Admin | Info group |
+| `.c ban <IDuser>` | Admin | Ban user |
+| `.c unban <IDuser>` | Admin | Unban user |
+| `.c ui [IDuser]` | Admin | Info user |
 
-## API Key
-Gemini API key sourced from `scripts/cmds/amagi.js`
-Model: `gemini-2.0-flash`
+### AI Commands (Scripts)
+- `scripts/cmds/amagi.js` — Amagi karakter (Gemini), support gambar dikirim & generate
+- `scripts/cmds/rem.js` — Rem karakter (GPT-5.4), support gambar dikirim & generate
+- `scripts/cmds/agent.js` — Agent umum (Gemini)
+
+### Database
+- `amagiBrain.json` / `amagiBrain2.json` — Memory Amagi bot 1 & 2
+- `remBrain.json` / `remBrain2.json` — Memory Rem bot 1 & 2
+- SQLite — thread/user data
+
+---
+
+## API Keys (Env Secrets)
+| Key | Digunakan Oleh |
+|-----|----------------|
+| `GEMINI_API_KEY` | agent-web, amagi.js, agent.js |
+| `OPENAI_API_KEY` | rem-web, rem.js |
+| `XAI_API_KEY` | (legacy, tidak aktif dipakai) |
+
+---
 
 ## Workflows
-- **AI Agent** — `node agent-web/server.js` on port 5000 (webview)
-- **Bot Start** — `node index.js` (console, GoatBot)
+| Nama | Command | Port |
+|------|---------|------|
+| AI Agent | `node agent-web/server.js` | 8976 / 5000 |
+| Rem AI Agent | `node rem-web/server.js` | 8977 / 3000 |
+| Bot Start | `node index.js` | — |
