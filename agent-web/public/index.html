@@ -20,6 +20,10 @@
           <span>Amagi Agent</span>
         </div>
         <span class="model-badge">gemini-3.1</span>
+        <a href="#" class="switch-link" id="switch-rem" title="Switch to Rem AI Agent">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          Rem AI
+        </a>
       </div>
       <div class="header-right">
         <div id="agent-status" class="status-indicator idle">
@@ -196,5 +200,12 @@
   </div>
 
   <script src="app.js"></script>
+  <script>
+    // Set Rem AI switch link dynamically based on current host
+    const remLink = document.getElementById("switch-rem");
+    if (remLink) {
+      remLink.href = window.location.protocol + "//" + window.location.hostname + ":3000";
+    }
+  </script>
 </body>
 </html>
