@@ -263,7 +263,8 @@ module.exports = {
                 author: "Luxion",
                 countDown: 5,
                 role: 0,
-                description: "Mengobrol dengan Amagi — bot 1 karakter Amagi, bot 2 AI profesional",
+                botInstance: "amagi",
+                description: "Mengobrol dengan Amagi — waifu AI berbasis Gemini",
                 category: "AI"
         },
 

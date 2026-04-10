@@ -32,6 +32,10 @@ args = "AI Agent"
 task = "workflow.run"
 args = "Rem AI Agent"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Rem Bot"
+
 [[workflows.workflow]]
 name = "Bot Start"
 author = "agent"
@@ -66,6 +70,17 @@ outputType = "console"
 task = "shell.exec"
 args = "node rem-web/server.js"
 waitForPort = 3000
+
+[[workflows.workflow]]
+name = "Rem Bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index-rem.js"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [[ports]]
 localPort = 3000

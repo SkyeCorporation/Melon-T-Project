@@ -1060,7 +1060,7 @@ async function startBot(loginWithEmail) {
 
                         // ———————————————— SECOND ACCOUNT ———————————————— //
                         const dirAccount2 = path.normalize(`${process.cwd()}/account2.txt`);
-                        if (existsSync(dirAccount2)) {
+                        if (!process.env.BOT_INSTANCE && existsSync(dirAccount2)) {
                                 try {
                                         const account2Text = readFileSync(dirAccount2, "utf8").trim();
                                         if (account2Text && account2Text !== "[]" && account2Text !== "") {
