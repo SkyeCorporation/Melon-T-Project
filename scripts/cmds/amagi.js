@@ -12,7 +12,7 @@ const WORKER_URL = "https://amagi-worker.luxion829.workers.dev";
 
 // ── Bot 2 AI config ───────────────────────────────────────
 // Ganti BOT2_API_KEY dan BOT2_SYSTEM_PROMPT sesuai kebutuhan bot kedua
-const BOT2_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo";
+const BOT2_API_KEY = "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo";
 const BOT2_MODEL = "gemini-3.1-flash-lite-preview";
 const BOT2_SYSTEM_PROMPT = `Kamu adalah asisten AI profesional dari bot kedua.
 Kamu menjawab dengan singkat, tepat, dan efisien.
@@ -169,7 +169,7 @@ function detectSecondBot(api) {
 }
 
 async function generateReply(message, senderID, userName, attachment, isBot2) {
-        const apiKey = isBot2 ? BOT2_API_KEY : (process.env.GEMINI_API_KEY || "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo");
+        const apiKey = isBot2 ? BOT2_API_KEY : "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo";
         const model = isBot2 ? BOT2_MODEL : "gemini-3.1-flash-lite-preview";
         const ai = new GoogleGenAI({ apiKey });
 
@@ -236,7 +236,7 @@ async function handleSelfImageRequest(api, event, senderID, userName, userMsg, i
                 api.sendMessage("Fitur gambar tidak tersedia di bot ini.", event.threadID);
                 return;
         }
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo" });
+        const ai = new GoogleGenAI({ apiKey: "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo" });
         const isLuxion = senderID === LUXION_ID;
         api.sendTypingIndicator(event.threadID);
         const imgPrompt = await getAmagiImagePrompt(ai, userMsg);
