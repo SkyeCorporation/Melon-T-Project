@@ -142,12 +142,12 @@ module.exports = {
 
                         return send(api, tid,
                                 `[ Group Info ]\n` +
-                                `Name   : ${groupName}\n` +
-                                `ID     : ${targetThreadID}\n` +
+                                `Name: ${groupName}\n` +
+                                `ID : ${targetThreadID}\n` +
                                 `IDgroup: ${IDgroup}\n` +
                                 `Members: ${totalMembers}\n` +
-                                `Admins : ${totalAdmins}\n` +
-                                `Status : ${status}`
+                                `Admins: ${totalAdmins}\n` +
+                                `Status: ${status}`
                         );
                 }
 

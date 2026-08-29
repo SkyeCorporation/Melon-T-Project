@@ -29,7 +29,7 @@ module.exports = {
 			welcomeMessage: "Bot telah terkoneksi.\nRem Chan disini!!\n\nOh ya buat kalian yang belum tau saya siapa? saya Rem! Bot AI yang diciptakan oleh tuan Luxion",
 			multiple1: "you",
 			multiple2: "you guys",
-			defaultWelcomeMessage: `Halo {userName}! Selamat datang ke {boxName}`
+			defaultWelcomeMessage: `Halo {userName}!\nSelamat datang ke {boxName}`
 		}
 	},
 
@@ -45,7 +45,6 @@ module.exports = {
 				if (dataAddedParticipants.some((item) => item.userFbId == api.getCurrentUserID())) {
 					if (nickNameBot)
 						
-					return message.send(getLang("welcomeMessage", prefix));
 				}
 				// if new member:
 				if (!global.temp.welcomeEvent[threadID])
@@ -114,7 +113,6 @@ module.exports = {
 
 					form.body = welcomeMessage;
 
-					message.send(form);
 					delete global.temp.welcomeEvent[threadID];
 				}, 1500);
 			};

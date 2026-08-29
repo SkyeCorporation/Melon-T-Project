@@ -5,6 +5,9 @@
   let currentTextEl = null;
   let pendingToolBlocks = {};
   let pendingImage = null;
+  let agentConfig = null;
+  let conversationMessages = [];
+  let sessionReadyPromise = null;
 
   const chatMessages = document.getElementById("chat-messages");
   const chatInput = document.getElementById("chat-input");
@@ -358,9 +361,16 @@
 
   async function clearHistory() {
     if (!confirm("Hapus riwayat percakapan?")) return;
-    await fetch("/api/history/clear", { method: "POST" });
-    chatMessages.innerHTML = "";
-    appendSystemMessage("Riwayat percakapan dihapus.");
+    try {
+      await fetch("/api/history/clear", { method: "POST" });
+      if (agentConfig) {
+        conversationMessages = [{ role: "system", content: agentConfig.systemInstruction }];
+      }
+      chatMessages.innerHTML = "";
+      appendSystemMessage("Riwayat percakapan dihapus.");
+    } catch (e) {
+      addLog("error", `Gagal menghapus riwayat: ${e.message}`);
+    }
   }
 
   async function handleImagineCommand(prompt) {
@@ -408,6 +418,131 @@
     scrollToBottom();
   }
 
+  async function loadAgentSession() {
+    if (sessionReadyPromise) return sessionReadyPromise;
+
+    sessionReadyPromise = (async () => {
+      const [configResponse, historyResponse] = await Promise.all([
+        fetch("/api/agent-config"),
+        fetch("/api/history")
+      ]);
+      if (!configResponse.ok || !historyResponse.ok) {
+        throw new Error("Konfigurasi Rem tidak dapat dimuat");
+      }
+
+      agentConfig = await configResponse.json();
+      const historyData = await historyResponse.json();
+      conversationMessages = [
+        { role: "system", content: agentConfig.systemInstruction },
+        ...(historyData.history || []).map(item => ({
+          role: item.role,
+          content: item.content
+        }))
+      ];
+
+      const badge = document.querySelector(".model-badge");
+      const chatModel = document.querySelector(".chat-header-sub");
+      if (badge) badge.textContent = "Claude Opus 5 · Free";
+      if (chatModel) chatModel.textContent = "Claude Opus 5 · Free via Puter";
+    })();
+
+    try {
+      await sessionReadyPromise;
+    } catch (error) {
+      sessionReadyPromise = null;
+      throw error;
+    }
+  }
+
+  function getPuterClient() {
+    const client = window.puter;
+    if (!client?.ai?.chat) {
+      throw new Error("Puter.js belum siap. Muat ulang halaman dan coba lagi.");
+    }
+    return client;
+  }
+
+  function extractChatText(content) {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content
+      .map(part => typeof part === "string" ? part : (part?.text || ""))
+      .join("");
+  }
+
+  async function executeAgentTool(name, args) {
+    const response = await fetch("/api/tool", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, args })
+    });
+    const result = await response.json().catch(() => ({
+      success: false,
+      error: `Server mengembalikan respons tidak valid (${response.status})`
+    }));
+    if (!response.ok && result.success !== false) {
+      result.success = false;
+    }
+    return result;
+  }
+
+  async function requestClaude(puter, messages, options) {
+    const response = await puter.ai.chat(messages, { ...options, stream: true });
+    if (!response || typeof response[Symbol.asyncIterator] !== "function") {
+      return response;
+    }
+
+    let text = "";
+    const toolCalls = new Map();
+    for await (const chunk of response) {
+      if (chunk.type === "text" && chunk.text) {
+        text += chunk.text;
+        appendTextToAgent(chunk.text);
+      } else if (chunk.type === "reasoning") {
+        setStatus("thinking", "Claude sedang menalar...");
+      } else if (chunk.type === "tool_use") {
+        const id = chunk.id || `${chunk.name || "tool"}-${toolCalls.size}`;
+        const current = toolCalls.get(id) || { id, name: chunk.name, input: {} };
+        if (chunk.name) current.name = chunk.name;
+        if (chunk.input !== undefined) current.input = chunk.input;
+        toolCalls.set(id, current);
+      } else if (chunk.type === "error") {
+        throw new Error(chunk.message || "Puter menghentikan stream");
+      }
+    }
+
+    return {
+      rendered: true,
+      message: {
+        role: "assistant",
+        content: text,
+        ...(toolCalls.size ? {
+          tool_calls: [...toolCalls.values()].map(call => ({
+            id: call.id,
+            function: {
+              name: call.name,
+              arguments: JSON.stringify(call.input || {})
+            }
+          }))
+        } : {})
+      }
+    };
+  }
+
+  async function saveConversationTurn(userText, assistantText) {
+    if (!userText && !assistantText) return;
+    try {
+      const response = await fetch("/api/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: userText, assistant: assistantText })
+      });
+      if (!response.ok) throw new Error(`server ${response.status}`);
+    } catch (error) {
+      addLog("error", `Riwayat tidak tersimpan: ${error.message}`);
+    }
+  }
+
   async function sendMessage() {
     const msg = chatInput.value.trim();
     if (!msg && !pendingImage) return;
@@ -441,40 +576,93 @@
     const logLabel = msg ? msg.slice(0, 60) + (msg.length > 60 ? "..." : "") : `[Gambar: ${imgToSend?.fileName}]`;
     addLog("info", `→ ${logLabel}`);
 
-    const body = { message: msg };
-    if (imgToSend) {
-      body.imageData = imgToSend.base64;
-      body.mimeType = imgToSend.mimeType;
-    }
-
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const event = JSON.parse(line.slice(6));
-              handleAgentEvent(event);
-            } catch {}
+      await loadAgentSession();
+      const puter = getPuterClient();
+      const userText = msg || (imgToSend ? "[Mengirim gambar]" : "");
+      conversationMessages.push(imgToSend
+        ? {
+            role: "user",
+            content: [
+              { type: "text", text: userText },
+              { type: "image_url", image_url: { url: imgToSend.dataUrl } }
+            ]
           }
+        : { role: "user", content: userText });
+
+      const baseOptions = {
+        model: agentConfig.model,
+        tools: agentConfig.tools,
+        temperature: 0.7,
+        max_tokens: 8192
+      };
+      let assistantText = "";
+      let loopCount = 0;
+      const maxLoops = 20;
+
+      while (loopCount < maxLoops) {
+        loopCount++;
+        setStatus("thinking", "Claude berpikir...");
+        const response = await requestClaude(puter, conversationMessages, baseOptions);
+
+        const assistant = response?.message || response;
+        const text = extractChatText(assistant?.content ?? response?.content);
+        if (text && !response?.rendered) {
+          appendTextToAgent(text);
         }
+        assistantText += text;
+
+        const toolCalls = assistant?.tool_calls || response?.tool_calls || [];
+        const assistantMessage = {
+          role: assistant?.role || "assistant",
+          content: assistant?.content || ""
+        };
+        if (toolCalls.length) assistantMessage.tool_calls = toolCalls;
+        conversationMessages.push(assistantMessage);
+
+        if (!toolCalls.length) break;
+
+        for (const toolCall of toolCalls) {
+          const name = toolCall.function?.name || toolCall.name;
+          const rawArgs = toolCall.function?.arguments ?? toolCall.input ?? {};
+          let args = rawArgs;
+          if (typeof rawArgs === "string") {
+            try { args = JSON.parse(rawArgs); } catch { args = {}; }
+          }
+          const callKey = toolCall.id || `${name}-${loopCount}`;
+
+          setStatus("running", `Menjalankan ${name}...`);
+          appendToolCall(name, args, callKey);
+          addLog("tool", `⚡ ${name}(${formatArgs(args)})`);
+
+          const result = await executeAgentTool(name, args);
+          if (result.imageData) {
+            appendGeneratedImage(result.imageData, result.mimeType, result.prompt || args.prompt);
+          }
+          finalizeToolCall(name, result, callKey);
+          const isOk = result?.success !== false;
+          addLog(isOk ? "success" : "error", `  ${isOk ? "✓" : "✗"} ${name}: ${getResultPreview(result)}`);
+          if (name === "createCheckpoint" && isOk) loadCheckpoints();
+
+          const modelResult = result.imageData
+            ? { ...result, imageData: undefined, message: "Image generated successfully and displayed to user." }
+            : result;
+          conversationMessages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(modelResult)
+          });
+        }
+        setStatus("thinking", "Claude menganalisis hasil...");
       }
+
+      if (loopCount >= maxLoops) {
+        appendTextToAgent("\n\n[Agent mencapai batas iterasi maksimum]");
+      }
+      await saveConversationTurn(userText, assistantText);
+      setStatus("done", "Selesai");
     } catch (e) {
-      appendTextToAgent(`\n\n[Koneksi error: ${e.message}]`);
+      appendTextToAgent(`\n\n[Error Claude/Puter: ${e.message}]`);
       setStatus("error", "Error");
       addLog("error", `Error: ${e.message}`);
     } finally {
@@ -598,7 +786,7 @@
     scrollToBottom();
   }
 
-  function appendToolCall(name, args) {
+  function appendToolCall(name, args, callKey = name) {
     if (!currentMsgEl) startAgentMessage();
     const body = currentMsgEl.querySelector(".message-body");
     currentTextEl = null;
@@ -625,14 +813,14 @@
       </div>`;
     block.querySelector(".tool-block-header").addEventListener("click", () => block.classList.toggle("expanded"));
     body.appendChild(block);
-    pendingToolBlocks[name] = block;
+    pendingToolBlocks[callKey] = block;
     scrollToBottom();
   }
 
-  function finalizeToolCall(name, result) {
-    const block = pendingToolBlocks[name];
+  function finalizeToolCall(name, result, callKey = name) {
+    const block = pendingToolBlocks[callKey];
     if (!block) return;
-    delete pendingToolBlocks[name];
+    delete pendingToolBlocks[callKey];
     const isOk = result?.success !== false;
     block.classList.add(isOk ? "success" : "error");
     const resultContent = block.querySelector(".tool-result-content");
