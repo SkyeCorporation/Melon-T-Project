@@ -470,6 +470,18 @@
       .join("");
   }
 
+  function normalizeMessages(messages) {
+    return messages.map(message => {
+      const normalized = {
+        role: message?.role || "user",
+        content: message?.content == null ? "" : message.content
+      };
+      if (message?.tool_calls) normalized.tool_calls = message.tool_calls;
+      if (message?.tool_call_id) normalized.tool_call_id = message.tool_call_id;
+      return normalized;
+    });
+  }
+
   async function executeAgentTool(name, args) {
     const response = await fetch("/api/tool", {
       method: "POST",
@@ -487,7 +499,7 @@
   }
 
   async function requestClaude(puter, messages, options) {
-    const response = await puter.ai.chat(messages, { ...options, stream: true });
+    const response = await puter.ai.chat(normalizeMessages(messages), { ...options, stream: true });
     if (!response || typeof response[Symbol.asyncIterator] !== "function") {
       return response;
     }
@@ -580,7 +592,7 @@
       await loadAgentSession();
       const puter = getPuterClient();
       const userText = msg || (imgToSend ? "[Mengirim gambar]" : "");
-      conversationMessages.push(imgToSend
+      const userMessage = imgToSend
         ? {
             role: "user",
             content: [
@@ -588,7 +600,8 @@
               { type: "image_url", image_url: { url: imgToSend.dataUrl } }
             ]
           }
-        : { role: "user", content: userText });
+        : { role: "user", content: userText };
+      const workingMessages = [...conversationMessages, userMessage];
 
       const baseOptions = {
         model: agentConfig.model,
@@ -603,7 +616,7 @@
       while (loopCount < maxLoops) {
         loopCount++;
         setStatus("thinking", "Claude berpikir...");
-        const response = await requestClaude(puter, conversationMessages, baseOptions);
+        const response = await requestClaude(puter, workingMessages, baseOptions);
 
         const assistant = response?.message || response;
         const text = extractChatText(assistant?.content ?? response?.content);
@@ -612,13 +625,17 @@
         }
         assistantText += text;
 
-        const toolCalls = assistant?.tool_calls || response?.tool_calls || [];
+        const rawToolCalls = assistant?.tool_calls || response?.tool_calls || [];
+        const toolCalls = rawToolCalls.map((toolCall, index) => ({
+          ...toolCall,
+          id: toolCall.id || `${toolCall.function?.name || toolCall.name || "tool"}-${loopCount}-${index}`
+        }));
         const assistantMessage = {
           role: assistant?.role || "assistant",
           content: assistant?.content || ""
         };
         if (toolCalls.length) assistantMessage.tool_calls = toolCalls;
-        conversationMessages.push(assistantMessage);
+        workingMessages.push(assistantMessage);
 
         if (!toolCalls.length) break;
 
@@ -647,9 +664,9 @@
           const modelResult = result.imageData
             ? { ...result, imageData: undefined, message: "Image generated successfully and displayed to user." }
             : result;
-          conversationMessages.push({
+          workingMessages.push({
             role: "tool",
-            tool_call_id: toolCall.id,
+            tool_call_id: callKey,
             content: JSON.stringify(modelResult)
           });
         }
@@ -658,6 +675,10 @@
 
       if (loopCount >= maxLoops) {
         appendTextToAgent("\n\n[Agent mencapai batas iterasi maksimum]");
+      }
+      conversationMessages.push({ role: "user", content: userText });
+      if (assistantText) {
+        conversationMessages.push({ role: "assistant", content: assistantText });
       }
       await saveConversationTurn(userText, assistantText);
       setStatus("done", "Selesai");

@@ -1,0 +1,1 @@
+- [Puter tool-message context](puter-tool-message-context.md) — keep internal tool messages within one request loop and persist only plain conversation turns.
