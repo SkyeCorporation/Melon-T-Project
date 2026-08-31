@@ -22,5 +22,13 @@
   {
     "role": "assistant",
     "content": "Siap! Aku bikinin halaman space-themed yang full efek CSS — starfield parallax, nebula, tata surya beranimasi, tabel perkalian interaktif, sampai grafik fungsi matematika di canvas. 🚀"
+  },
+  {
+    "role": "user",
+    "content": "Halo"
+  },
+  {
+    "role": "assistant",
+    "content": "Halo! 👋 Folder `RemTest/` sudah ada tapi masih kosong — aku langsung buatin `index.html`-nya sekarang ya. Tema space, full CSS effects! 🌌"
   }
 ]

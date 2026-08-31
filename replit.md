@@ -15,10 +15,10 @@ Dua AI Agent web + Facebook Messenger bot berbasis GoatBot V2.
 
 ### AI Agent Web 2: Rem AI Agent (`rem-web/`)
 - **Port**: 8977 (main), 3000 (preview/webview)
-- **Backend**: `rem-web/server.js` — Express tool gateway + Puter.js client with Claude Opus 5
-- **AI access**: Puter.js, free through the user's Puter session; no app API key
+- **Backend**: `rem-web/server.js` — Express tool gateway + Puter.js model configuration
+- **AI access**: Puter.js Claude free/unlimited models through the user's Puter session; no app API key
 - **Frontend**: `rem-web/public/` — vanilla JS 3-panel IDE UI (sama style dengan Amagi)
-- **Fitur**: Claude chat, function calling, baca/tulis file, generate gambar, checkpoint, kirim gambar dari user, baca gambar yang dikirim user
+- **Fitur**: Claude chat dengan pemilih model, function calling, baca/tulis file, generate gambar, checkpoint, kirim gambar dari user, baca gambar yang dikirim user
 
 ### Navigasi Antar Agent
 - Amagi Agent → klik "Rem AI" di header → buka port 3000

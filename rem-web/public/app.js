@@ -23,6 +23,7 @@
   const logsContent = document.getElementById("logs-content");
   const modalOverlay = document.getElementById("modal-overlay");
   const modalFilename = document.getElementById("modal-filename");
+  const modelSelect = document.getElementById("model-select");
 
   const isMobile = () => window.innerWidth <= 680;
 
@@ -439,11 +440,7 @@
           content: item.content
         }))
       ];
-
-      const badge = document.querySelector(".model-badge");
-      const chatModel = document.querySelector(".chat-header-sub");
-      if (badge) badge.textContent = "Claude Opus 5 · Free";
-      if (chatModel) chatModel.textContent = "Claude Opus 5 · Free via Puter";
+      renderModelOptions();
     })();
 
     try {
@@ -469,6 +466,33 @@
       .map(part => typeof part === "string" ? part : (part?.text || ""))
       .join("");
   }
+
+  function updateModelDisplay() {
+    const selectedOption = modelSelect?.selectedOptions?.[0];
+    const selectedLabel = selectedOption?.dataset.label || selectedOption?.textContent || "Claude";
+    const chatModel = document.querySelector(".chat-header-sub");
+    if (chatModel) chatModel.textContent = `${selectedLabel} · Free via Puter`;
+  }
+
+  function renderModelOptions() {
+    if (!modelSelect || !agentConfig?.models?.length) return;
+    const savedModel = (() => {
+      try { return localStorage.getItem("rem-puter-model"); } catch { return null; }
+    })();
+    modelSelect.innerHTML = agentConfig.models
+      .map(model => `<option value="${escHtml(model.id)}" data-label="${escHtml(model.label)}">${escHtml(model.label)} · Free</option>`)
+      .join("");
+    const availableIds = agentConfig.models.map(model => model.id);
+    modelSelect.value = availableIds.includes(savedModel) ? savedModel : agentConfig.model;
+    if (!availableIds.includes(modelSelect.value)) modelSelect.value = availableIds[0];
+    updateModelDisplay();
+  }
+
+  modelSelect?.addEventListener("change", () => {
+    try { localStorage.setItem("rem-puter-model", modelSelect.value); } catch {}
+    updateModelDisplay();
+    addLog("info", `Model Puter dipilih: ${modelSelect.selectedOptions[0]?.textContent || modelSelect.value}`);
+  });
 
   function normalizeMessages(messages) {
     return messages.map(message => {
@@ -604,7 +628,7 @@
       const workingMessages = [...conversationMessages, userMessage];
 
       const baseOptions = {
-        model: agentConfig.model,
+        model: modelSelect?.value || agentConfig.model,
         tools: agentConfig.tools,
         temperature: 0.7,
         max_tokens: 8192

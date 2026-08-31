@@ -70,7 +70,7 @@ body {
   font-weight: 600; font-size: 14px;
 }
 .logo svg { color: var(--accent); }
-.model-badge {
+.model-select {
   background: var(--accent-dim);
   color: var(--accent);
   border: 1px solid rgba(56, 189, 248, 0.25);
@@ -78,6 +78,16 @@ body {
   border-radius: 20px;
   font-size: 11px;
   font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.model-select:hover, .model-select:focus {
+  border-color: rgba(56, 189, 248, 0.55);
+}
+.model-select option {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 .switch-link {
   display: flex;
