@@ -36,6 +36,7 @@
   "commandUnload": [
     "stats.js",
     "ai3.js",
-    "ai2.js"
+    "ai2.js",
+    "esdeath.js"
   ]
 }
