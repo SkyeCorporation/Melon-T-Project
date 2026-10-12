@@ -2,8 +2,8 @@ const fs = require("fs");
 const path = require("path");
 
 const configPath = path.join(__dirname, "..", "..", "antiSpam.json");
-const WINDOW_MS = 2000;
-const MESSAGE_LIMIT = 10;
+const WINDOW_MS = 5000;
+const MESSAGE_LIMIT = 8;
 const messageWindows = new Map();
 const activeActions = new Set();
 let lastConfigError = "";
@@ -131,7 +131,7 @@ module.exports = {
                 const isEnabled = enabledThreads.includes(threadID);
                 if (action === "status")
                         return api.sendMessage(isEnabled
-                                ? "Anti-spam aktif di grup ini (10 pesan dalam 2 detik)."
+                                ? "Anti-spam aktif di grup ini (8 pesan dalam 5 detik)."
                                 : "Anti-spam belum aktif di grup ini.", event.threadID);
 
                 const shouldEnable = action === "on";
@@ -151,7 +151,7 @@ module.exports = {
                 }
 
                 return api.sendMessage(shouldEnable
-                        ? "Anti-spam aktif di grup ini: 10 pesan dari satu anggota dalam 2 detik. Jika bot admin, pengirim akan dikeluarkan; jika bukan, bot akan keluar dari grup."
+                        ? "Anti-spam aktif di grup ini: 8 pesan dari satu anggota dalam 5 detik. Jika bot admin, pengirim akan dikeluarkan; jika bukan, bot akan keluar dari grup."
                         : "Anti-spam dinonaktifkan di grup ini.", event.threadID);
         },
 
