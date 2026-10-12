@@ -7,6 +7,7 @@ const { Readable } = require("stream");
 const brainPath = path.join(__dirname, "esdeathBrain.json");
 const brain2Path = path.join(__dirname, "esdeathBrain2.json");
 const esdeathStatePath = path.join(__dirname, "esdeathState.json");
+const esdeathApiKeysPath = path.join(__dirname, "esdeathApiKeys.json");
 const personalityImgPath = path.join(__dirname, "..", "..", "personality", "esdeath.jpg");
 const WORKER_URL = "https://amagi-worker.luxion829.workers.dev";
 
@@ -31,6 +32,30 @@ const TORA_ID = "61593935405605";
 if (!fs.existsSync(brainPath)) fs.writeFileSync(brainPath, "{}");
 if (!fs.existsSync(brain2Path)) fs.writeFileSync(brain2Path, "{}");
 if (!fs.existsSync(esdeathStatePath)) fs.writeFileSync(esdeathStatePath, "{}");
+
+function loadEsdeathApiKey(isBot2) {
+        let config;
+        try {
+                config = JSON.parse(fs.readFileSync(esdeathApiKeysPath, "utf8"));
+        } catch (error) {
+                if (error.code === "ENOENT")
+                        throw new Error("File scripts/cmds/esdeathApiKeys.json belum tersedia.");
+                if (error instanceof SyntaxError)
+                        throw new Error("Format scripts/cmds/esdeathApiKeys.json tidak valid.");
+                throw error;
+        }
+
+        if (!config || typeof config !== "object" || Array.isArray(config))
+                throw new Error("Isi scripts/cmds/esdeathApiKeys.json harus berupa object JSON.");
+
+        const primaryKey = typeof config.apiKey === "string" ? config.apiKey.trim() : "";
+        const bot2Key = typeof config.bot2ApiKey === "string" ? config.bot2ApiKey.trim() : "";
+        const selectedKey = isBot2 ? (bot2Key || primaryKey) : primaryKey;
+        if (!selectedKey)
+                throw new Error(`Isi field "${isBot2 ? "bot2ApiKey atau apiKey" : "apiKey"}" di esdeathApiKeys.json.`);
+
+        return selectedKey;
+}
 
 let ESDEATH_IMG_BASE64 = null;
 let ESDEATH_IMG_DESC_CACHE = null;
@@ -203,7 +228,7 @@ async function getThreadMemberContext(api, event, usersData, senderID, senderNam
 async function generateReply(message, senderID, userName, threadID, memberContext, attachment, isBot2) {
         const apiKey = isBot2 ? BOT2_API_KEY : "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo";
         const model = isBot2 ? BOT2_MODEL : "gemini-3.1-flash-lite-preview";
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: loadEsdeathApiKey(isBot2) });
 
         const senderIsTora = String(senderID) === TORA_ID;
         const systemPrompt = senderIsTora
@@ -290,7 +315,7 @@ async function handleSelfImageRequest(api, event, senderID, userName, userMsg, i
         const ai = new GoogleGenAI({ apiKey: "AIzaSyAy9zxfNhe8irjNRiEl7rWqHNQmR5vj2Eo" });
         const isTora = String(senderID) === TORA_ID;
         api.sendTypingIndicator(event.threadID);
-        const imgPrompt = await getEsdeathImagePrompt(ai, userMsg);
+        const imgPrompt = await getEsdeathImagePrompt(new GoogleGenAI({ apiKey: loadEsdeathApiKey(false) }), userMsg);
         const replyText = isTora ? "Dengan hormat, Kaisar Tora. Ini wujud Esdeath, Ksatria Ice Anda." : "Inilah wujud Esdeath, Ksatria Ice.";
         try {
                 await humanDelay(800, 1500);
@@ -397,9 +422,13 @@ module.exports = {
                         api.sendMessage(reply, event.threadID);
                 } catch (error) {
                         console.error("Esdeath error:", error);
-                        const errMsg = error.message?.includes("503")
-                                ? "Server sedang sibuk, coba lagi nanti."
-                                : "Gagal konek ke Gemini.";
+                        const message = error.message || String(error);
+                        const isApiConfigError = /esdeathApiKeys\.json|apiKey|bot2ApiKey/i.test(message);
+                        const errMsg = isApiConfigError
+                                ? message
+                                : message.includes("503")
+                                        ? "Server sedang sibuk, coba lagi nanti."
+                                        : "Gagal konek ke Gemini.";
                         api.sendMessage(errMsg, event.threadID);
                 }
         }

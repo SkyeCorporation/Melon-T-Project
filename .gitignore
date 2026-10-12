@@ -1,4 +1,5 @@
 config.json
 .env
+scripts/cmds/esdeathApiKeys.json
 node_modules/
 database/
