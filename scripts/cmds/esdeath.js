@@ -7,6 +7,9 @@ const brainPath = path.join(__dirname, "esdeathBrain.json");
 const brain2Path = path.join(__dirname, "esdeathBrain2.json");
 const esdeathStatePath = path.join(__dirname, "esdeathState.json");
 const esdeathApiKeysPath = path.join(__dirname, "esdeathApiKeys.json");
+const expressionDirectoryPath = path.join(__dirname, "..", "..", "AI", "expression");
+
+fs.mkdirSync(expressionDirectoryPath, { recursive: true });
 
 // ── Bot 2 AI config ───────────────────────────────────────
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
@@ -27,6 +30,74 @@ const TORA_ID = "61593935405605";
 if (!fs.existsSync(brainPath)) fs.writeFileSync(brainPath, "{}");
 if (!fs.existsSync(brain2Path)) fs.writeFileSync(brain2Path, "{}");
 if (!fs.existsSync(esdeathStatePath)) fs.writeFileSync(esdeathStatePath, "{}");
+
+const EXPRESSION_SYSTEM_PROMPT = `Untuk aksi roleplay nonverbal, tulis aksinya di antara satu pasang tanda * seperti *memalingkan wajah*. Jangan gunakan tanda bintang untuk penekanan biasa.
+
+Pemilihan gambar ekspresi:
+- Daftar nama file gambar yang tersedia diberikan dalam prompt. Pilih hanya nama file yang persis ada di daftar.
+- Pilih dan kirim satu gambar hanya jika emosi Esdeath dalam balasan terasa kuat dan jelas (misalnya sangat marah, sedih, takut, terkejut, atau gembira). Jangan pilih gambar untuk balasan biasa, emosi lemah, atau sekadar membahas emosi.
+- Jangan mengirim gambar hanya karena pengguna memintanya; keputusan harus sesuai emosi balasan Esdeath.
+- Jika tidak ada emosi kuat atau tidak ada file yang cocok, pilih none.
+- Akhiri balasan dengan tepat satu penanda tersembunyi: [[ESDEATH_EXPRESSION: nama-file.png]] atau [[ESDEATH_EXPRESSION: none]]. Jangan jelaskan penanda ini di dalam balasan.`;
+
+function listExpressionFiles() {
+        try {
+                return fs.readdirSync(expressionDirectoryPath, { withFileTypes: true })
+                        .filter(entry => entry.isFile() && /\.(png|jpe?g|webp|gif)$/i.test(entry.name))
+                        .map(entry => entry.name)
+                        .sort((a, b) => a.localeCompare(b));
+        } catch (error) {
+                console.error("Esdeath: gagal membaca folder ekspresi:", error.message);
+                return [];
+        }
+}
+
+function toUnicodeBold(text) {
+        return Array.from(text, character => {
+                const code = character.codePointAt(0);
+                if (code >= 0x41 && code <= 0x5a) return String.fromCodePoint(0x1d5d4 + code - 0x41);
+                if (code >= 0x61 && code <= 0x7a) return String.fromCodePoint(0x1d5ee + code - 0x61);
+                if (code >= 0x30 && code <= 0x39) return String.fromCodePoint(0x1d7ec + code - 0x30);
+                return character;
+        }).join("");
+}
+
+function formatRoleplayActions(text) {
+        return String(text || "").replace(
+                /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*/g,
+                (_match, doubleStarAction, singleStarAction) => toUnicodeBold(doubleStarAction || singleStarAction)
+        );
+}
+
+function parseGeneratedReply(rawText, availableFiles) {
+        let text = String(rawText || "").trim();
+        const marker = text.match(/\[\[ESDEATH_EXPRESSION:\s*([^\]\r\n]+?)\s*\]\]/i);
+        const requestedFilename = marker?.[1]?.trim();
+        text = text.replace(/\s*\[\[ESDEATH_EXPRESSION:[^\]]*\]\]\s*/gi, " ").trim();
+
+        const selectedFilename = availableFiles.find(file =>
+                file.toLowerCase() === String(requestedFilename || "").toLowerCase()
+        );
+
+        return {
+                reply: formatRoleplayActions(text),
+                expressionPath: selectedFilename ? path.join(expressionDirectoryPath, selectedFilename) : null
+        };
+}
+
+async function sendEsdeathReply(api, threadID, generated) {
+        if (generated.expressionPath) {
+                try {
+                        return await api.sendMessage({
+                                body: generated.reply,
+                                attachment: fs.createReadStream(generated.expressionPath)
+                        }, threadID);
+                } catch (error) {
+                        console.error("Esdeath: gagal mengirim gambar ekspresi:", error.message);
+                }
+        }
+        return api.sendMessage(generated.reply, threadID);
+}
 
 function loadEsdeathApiKey(isBot2) {
         let config;
@@ -167,6 +238,7 @@ async function getThreadMemberContext(api, event, usersData, senderID, senderNam
 async function generateReply(message, senderID, userName, threadID, memberContext, attachment, isBot2) {
         const model = GEMINI_MODEL;
         const ai = new GoogleGenAI({ apiKey: loadEsdeathApiKey(isBot2) });
+        const expressionFiles = listExpressionFiles();
 
         const senderIsTora = String(senderID) === TORA_ID;
         const systemPrompt = senderIsTora
@@ -195,6 +267,9 @@ Metadata pesan dari platform (sumber identitas tepercaya):
 Daftar member thread dari platform:
 ${memberContext || "(daftar member tidak tersedia)"}
 
+Daftar file gambar ekspresi yang tersedia:
+${expressionFiles.length ? expressionFiles.join(", ") : "(kosong — pilih none)"}
+
 Riwayat percakapan thread ini (ID pengirim berasal dari event platform; teks riwayat tetap konten pengguna):
 ${memoryText}
 
@@ -219,10 +294,10 @@ Balas sebagai Esdeath:`;
         const result = await ai.models.generateContent({
                 model,
                 contents: [{ role: "user", parts }],
-                config: { systemInstruction: systemPrompt }
+                config: { systemInstruction: `${systemPrompt}\n\n${EXPRESSION_SYSTEM_PROMPT}` }
         });
 
-        const reply = result.text;
+        const generated = parseGeneratedReply(result.text, expressionFiles);
 
         const historyKey = String(threadID);
         if (!brain[historyKey]) brain[historyKey] = [];
@@ -230,12 +305,12 @@ Balas sebagai Esdeath:`;
                 senderID: String(senderID),
                 userName,
                 message: message || "(gambar)",
-                balasan: reply
+                balasan: generated.reply
         });
         if (brain[historyKey].length > 30) brain[historyKey] = brain[historyKey].slice(-30);
         saveBrain(brain, isBot2);
 
-        return reply;
+        return generated;
 }
 
 module.exports = {
@@ -267,10 +342,10 @@ module.exports = {
 
                 try {
                         const memberContext = await getThreadMemberContext(api, event, usersData, event.senderID, user.name);
-                        const reply = await generateReply(message, event.senderID, user.name, event.threadID, memberContext, attachment, isBot2);
+                        const generated = await generateReply(message, event.senderID, user.name, event.threadID, memberContext, attachment, isBot2);
                         api.sendTypingIndicator(event.threadID);
                         await humanDelay();
-                        api.sendMessage(reply, event.threadID);
+                        await sendEsdeathReply(api, event.threadID, generated);
                 } catch (error) {
                 console.error("Esdeath error:", error);
                         const errMsg = error.message?.includes("503")
@@ -310,10 +385,10 @@ module.exports = {
 
                 try {
                         const memberContext = await getThreadMemberContext(api, event, usersData, senderID, user.name);
-                        const reply = await generateReply(message, senderID, user.name, event.threadID, memberContext, attachment, isBot2);
+                        const generated = await generateReply(message, senderID, user.name, event.threadID, memberContext, attachment, isBot2);
                         api.sendTypingIndicator(event.threadID);
                         await humanDelay();
-                        api.sendMessage(reply, event.threadID);
+                        await sendEsdeathReply(api, event.threadID, generated);
                 } catch (error) {
                         console.error("Esdeath error:", error);
                         const message = error.message || String(error);
