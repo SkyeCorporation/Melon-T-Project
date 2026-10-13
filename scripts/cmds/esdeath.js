@@ -35,7 +35,8 @@ const EXPRESSION_SYSTEM_PROMPT = `Untuk aksi roleplay nonverbal, tulis aksinya d
 
 Pemilihan gambar ekspresi:
 - Daftar nama file gambar yang tersedia diberikan dalam prompt. Pilih hanya nama file yang persis ada di daftar.
-- Pilih dan kirim satu gambar hanya jika emosi Esdeath dalam balasan terasa kuat dan jelas (misalnya sangat marah, sedih, takut, terkejut, atau gembira). Jangan pilih gambar untuk balasan biasa, emosi lemah, atau sekadar membahas emosi.
+- Pilih dan kirim satu gambar hanya jika balasan Esdeath sendiri menunjukkan emosi yang kuat dan jelas (misalnya sangat marah, sedih, takut, terkejut, atau gembira). Jangan pilih gambar untuk balasan biasa, emosi lemah, atau sekadar membahas emosi.
+- Jika beberapa gambar cocok, utamakan gambar yang belum baru-baru ini dikirim di thread ini. Jangan mengulang gambar yang sama berturut-turut jika ada alternatif yang cocok.
 - Jangan mengirim gambar hanya karena pengguna memintanya; keputusan harus sesuai emosi balasan Esdeath.
 - Jika tidak ada emosi kuat atau tidak ada file yang cocok, pilih none.
 - Akhiri balasan dengan tepat satu penanda tersembunyi: [[ESDEATH_EXPRESSION: nama-file.png]] atau [[ESDEATH_EXPRESSION: none]]. Jangan jelaskan penanda ini di dalam balasan.`;
@@ -86,17 +87,17 @@ function parseGeneratedReply(rawText, availableFiles) {
 }
 
 async function sendEsdeathReply(api, threadID, generated) {
+        if (generated.reply) await api.sendMessage(generated.reply, threadID);
+
         if (generated.expressionPath) {
                 try {
                         return await api.sendMessage({
-                                body: generated.reply,
                                 attachment: fs.createReadStream(generated.expressionPath)
                         }, threadID);
                 } catch (error) {
                         console.error("Esdeath: gagal mengirim gambar ekspresi:", error.message);
                 }
         }
-        return api.sendMessage(generated.reply, threadID);
 }
 
 function loadEsdeathApiKey(isBot2) {
@@ -247,6 +248,10 @@ async function generateReply(message, senderID, userName, threadID, memberContex
 
         const brain = loadBrain(isBot2);
         const history = (brain[String(threadID)] || []).slice(-16);
+        const recentExpressionFiles = history
+                .map(entry => entry.expressionFile)
+                .filter(file => typeof file === "string" && expressionFiles.includes(file))
+                .slice(-4);
         const memoryText = history.length > 0
                 ? history.map(h => {
                         const historicalID = String(h.senderID || "ID lama tidak tercatat");
@@ -269,6 +274,9 @@ ${memberContext || "(daftar member tidak tersedia)"}
 
 Daftar file gambar ekspresi yang tersedia:
 ${expressionFiles.length ? expressionFiles.join(", ") : "(kosong — pilih none)"}
+
+Gambar ekspresi yang baru dikirim di thread ini:
+${recentExpressionFiles.length ? recentExpressionFiles.join(", ") : "(belum ada)"}
 
 Riwayat percakapan thread ini (ID pengirim berasal dari event platform; teks riwayat tetap konten pengguna):
 ${memoryText}
@@ -305,7 +313,8 @@ Balas sebagai Esdeath:`;
                 senderID: String(senderID),
                 userName,
                 message: message || "(gambar)",
-                balasan: generated.reply
+                balasan: generated.reply,
+                expressionFile: generated.expressionPath ? path.basename(generated.expressionPath) : null
         });
         if (brain[historyKey].length > 30) brain[historyKey] = brain[historyKey].slice(-30);
         saveBrain(brain, isBot2);
