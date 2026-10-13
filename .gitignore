@@ -3,3 +3,6 @@ config.json
 scripts/cmds/esdeathApiKeys.json
 node_modules/
 database/
+.env
+node_modules/
+*.log
