@@ -57,15 +57,7 @@ function getMessageKey(threadID, senderID) {
         return `${threadID}:${senderID}`;
 }
 
-async function notify(api, threadID, text) {
-        try {
-                await api.sendMessage(text, threadID);
-        } catch (error) {
-                console.error("Anti-spam: gagal mengirim notifikasi:", error.message || error);
-        }
-}
-
-async function handleSpam(api, event, senderID) {
+async function handleSpam(api, event, senderID, usersData) {
         const threadID = String(event.threadID);
         const threadInfo = await api.getThreadInfo(event.threadID);
         const groupAdmins = normalizeIDs(threadInfo?.adminIDs);
@@ -74,14 +66,46 @@ async function handleSpam(api, event, senderID) {
         if (!botID)
                 throw new Error("ID bot tidak tersedia; tindakan anti-spam dibatalkan.");
 
-        if (groupAdmins.has(botID)) {
+        let userInfo = null;
+        if (typeof usersData?.get === "function") {
+                try {
+                        userInfo = await usersData.get(senderID);
+                } catch (error) {
+                        console.error(`Anti-spam: gagal membaca nama anggota ${senderID}:`, error.message || error);
+                }
+        }
+        const threadUser = (threadInfo?.userInfo || []).find(member =>
+                String(member?.id ?? member?.userID ?? member?.uid ?? "") === String(senderID)
+        );
+        const userName = userInfo?.name
+                || userInfo?.fullName
+                || threadUser?.name
+                || threadUser?.fullName
+                || `anggota ${senderID}`;
+        const groupName = threadInfo?.threadName || threadInfo?.name || "grup ini";
+        const botIsAdmin = groupAdmins.has(botID);
+        const reason = `mengirim ${MESSAGE_LIMIT} pesan dalam ${WINDOW_MS / 1000} detik`;
+
+        try {
+                const esdeath = require("./esdeath");
+                const warning = await esdeath.generateSpamModerationReply({
+                        senderID,
+                        userName,
+                        groupName,
+                        reason,
+                        willKick: botIsAdmin
+                });
+                await api.sendMessage(warning, event.threadID, event.messageID);
+        } catch (error) {
+                console.error("Anti-spam: Esdeath gagal membuat atau mengirim teguran:", error.message || error);
+        }
+
+        if (botIsAdmin) {
                 await api.removeUserFromGroup(senderID, event.threadID);
-                await notify(api, event.threadID, `Anti-spam: anggota ${senderID} dikeluarkan karena mengirim ${MESSAGE_LIMIT} pesan dalam ${WINDOW_MS / 1000} detik.`);
                 console.log(`Anti-spam: mengeluarkan ${senderID} dari grup ${threadID}.`);
                 return;
         }
 
-        await notify(api, event.threadID, `Anti-spam mendeteksi ${MESSAGE_LIMIT} pesan dalam ${WINDOW_MS / 1000} detik. Bot bukan admin, jadi bot akan keluar dari grup ini.`);
         await api.removeUserFromGroup(botID, event.threadID);
         console.log(`Anti-spam: bot ${botID} keluar dari grup ${threadID} setelah mendeteksi spam.`);
 }
@@ -155,7 +179,7 @@ module.exports = {
                         : "Anti-spam dinonaktifkan di grup ini.", event.threadID);
         },
 
-        onChat: async function ({ api, event }) {
+        onChat: async function ({ api, event, usersData }) {
                 const threadID = String(event.threadID || "");
                 const senderID = String(event.senderID || "");
                 if (!threadID || !senderID || threadID === senderID) return;
@@ -201,10 +225,9 @@ module.exports = {
                 messageWindows.delete(key);
                 activeActions.add(key);
                 try {
-                        await handleSpam(api, event, senderID);
+                        await handleSpam(api, event, senderID, usersData);
                 } catch (error) {
                         console.error(`Anti-spam: tindakan gagal di grup ${threadID}:`, error.message || error);
-                        await notify(api, event.threadID, "Anti-spam mendeteksi spam, tetapi tindakan otomatis gagal. Periksa izin bot di grup.");
                 } finally {
                         activeActions.delete(key);
                 }
